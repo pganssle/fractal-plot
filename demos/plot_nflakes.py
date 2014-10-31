@@ -56,7 +56,7 @@ end_n = start_n if args.end_n is None else int(args.end_n)
 
 dpi = int(args.dpi)
 num_iterations = int(args.num_iterations)
-figsize = (int(args.fig_height), int(args.fig_width))
+figsize = (int(args.fig_width), int(args.fig_height))
 max_shapes = int(args.max_shapes)
 
 if args.output is None:

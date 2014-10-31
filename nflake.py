@@ -94,16 +94,65 @@ def subflake_n(n, parent_rxy, edge_center=False, center_gon=False):
     return rxys
 
 
-def plot_nflake(n, n_iterations, top_rad=1, xy=(0, 0), color='none', ec='k', elw=0.5, alpha=1.0,
+def plot_nflake(n, n_iterations, top_rad=1, xy=(0, 0), edge_center=False, center_polygon=False,
+                color='none', ec='k', elw=0.5, alpha=1.0,
                 center_color=None, center_ec=None, center_elw=None, center_alpha=None,
-                edge_center=False, center_polygon=False, fig=None, fig_dpi=120, fig_size=(8, 8),
-                only_centermost_colored=False, view_buff=0.001, view_buff_x=None, view_buff_y=None):
+                fig=None, fig_dpi=150, fig_size=(8, 8), 
+                view_buff=0.001, view_buff_x=None, view_buff_y=None,
+                only_centermost_colored=False):
     """
     Plots an n-flake where n is the number of sides on the polygons which comprise the flake.
 
     :param n: The number of sides of the polygon
     :param n_iterations: The number of iterations in the flake (caution: the number of shapes
                          rendered is an exponential function of n_iterations)
+    
+    Optional:
+    :param top_rad: The radius of the circle in which the top-level polygon is inscribed (default 1)
+    :param xy: A tuple containing the (x, y) coordinates of the center of the circle into which the
+               top-level polygon is inscribed. (default: 0,0)
+    :param edge_center: If True, this will generate an edge-centered n-flake. In edge-centered
+                        n-flakes, each child polygon has a single edge collinear with a single edge
+                        of the parent polygon. Without a center polygon, this only recursively 
+                        produces continuous shapes for polygons with number of sides n = 4*j + 6 
+                        where j is 0 or any positive integer. With a center polygon, this produces 
+                        a continuous shape for all even-sided polygons. Default is False.
+    :param center_polygon: Whether to generate a central polygon touching all the child polygons 
+                           or not. For most values of n, the central polygon will be scaled
+                           differently than the edge polygons. Default is False. 
+    :param color: The face color of the polygon (default: 'none')
+    :param ec: The edge color of the polygon (default: 'k')
+    :param elw: The edge line width (default: 0.5)
+    :param alpha: The transparency of the polygons (default: 1)
+    :param center_color: For n-flakes with a central polygon, specify the center polygon's face
+                         color. If None or not specified, this takes its value from `color`
+    :param center_ec: For n-flakes with a central polygon, specify the center polygon's edge
+                      color. If None or not specified, this takes its value from `ec`
+    :param center_elw: For n-flakes with a central polygon, specify the center polygon's edge line
+                       width. If None or not specified, this takes its value from `elw`
+    :param center_alpha: For n-flakes with a central polygon, specify the center polygon's alpha
+                         transparency. If none or not specified, this takes its value from `alpha`
+    :param fig: A figure instance with an existing axis. If None is specified, a new figure will be
+                generated. Default is None.
+    :param fig_dpi: If fig is None, the new figure generated will have this resolution, in dpi.
+                    Default is 150.
+    :param fig_size: A tuple specifying the size of the new figure as (width, height). 
+                     Default is (8, 8)
+    :param view_buff: The amount of "buffer" to add to each side of the axis to prevent clipping.
+                      Default is 0.001
+    :param view_buff_x: The amount of "buffer" to use along the x-axis. If None or not specified,
+                        this value is taken from the `view_buff` parameter.
+    :param view_buff_y: The amount of "buffer" to use along the y-axis. If None or not specified,
+                        this value is taken from the `view_buff` parameter.
+    :param only_centermost_colored: Normally the "central" polygons have an inverted color scheme
+                                    to the parent polygons if `center_color` and other parameters
+                                    are specified. If this parameter is set True, for even-numbered
+                                    polygons, the main color scheme is used for all but the center
+                                    polygons at the smallest level. This only works for even 
+                                    polygons due to implementation details, and will be fixed later.
+                                    For now it is ignored on odd polygons. Default is False.
+
+    :raises: ValueError
 
     :return: Returns the figure on which this is rendered.
     """
@@ -163,7 +212,9 @@ def plot_nflake(n, n_iterations, top_rad=1, xy=(0, 0), color='none', ec='k', elw
 
         o_rxys = n_rxys
 
-    for cgon in gons:
+    # This part is separate from the main loop in case I want to do bulk transforms of some sort
+    # before adding the patches to the axes. That may not be necessary.
+    for cgon in gons:                 
         ax.add_patch(cgon)
 
     ax.set_xticks([])
