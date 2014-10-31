@@ -5,27 +5,27 @@ import numpy as npy
 from numpy import cos, sin, pi      # Convenience
 
 
-def scale_factor(n, phase_offset=False):
+def scale_factor(n, edge_center=False):
     """
     Return the scale factor for subsequent iterations of an n-flake.
 
     :param n: The number of sides of on the polygon.
 
     Optional:
-    :param phase_offset: Whether the scale factor is being calculated for a vertex-centered flake
-                         (phase_offset=False, default) or an edge-centered flake.
+    :param edge_center: Whether the scale factor is being calculated for a vertex-centered flake
+                         (edge_center=False, default) or an edge-centered flake.
 
     :return: Returns the factor by which each child polygon is reduced - divide parent radius by the
              scale factor to get the child radius.
     """
 
-    if phase_offset:
+    if edge_center:
         return 3+(2/cos(pi/n))*npy.sum([cos((2*ii+1)*pi/n) for ii in range(1, int((n-2)/4)+1)])
     else:
         return 2*(1+npy.sum([cos(2*pi*ii/n) for ii in range(1, int(n/4)+1)]))
 
 
-def subflake_n(n, parent_rxy, phase_offset=False, center_gon=False):
+def subflake_n(n, parent_rxy, edge_center=False, center_gon=False):
     """
     Return the radius and (x, y) center locations of an n-flake based on the parent polygon,
     assuming the use of regular polygons.
@@ -35,7 +35,7 @@ def subflake_n(n, parent_rxy, phase_offset=False, center_gon=False):
     :param parent_center: The center (x, y) tuple of the parent polygon
 
     Optional
-    :param phase_offset: If phase_offset is true (default False), each child polygon will have its
+    :param edge_center: If edge_center is true (default False), each child polygon will have its
                          edge centered on an edge of the parent polygon. For polygons where
                          n = 6+4*k, this results in child polygons which share an edge rather than
                          a vertex, and as such this can be iterated without introducing gaps. For
@@ -61,7 +61,7 @@ def subflake_n(n, parent_rxy, phase_offset=False, center_gon=False):
     parent_radius = parent_rxy[0]
 
     # The radius of the child polygons is calculated from the scale factor
-    new_radius = parent_radius/(scale_factor(n, phase_offset=phase_offset))
+    new_radius = parent_radius/(scale_factor(n, edge_center=edge_center))
 
     # The child polgyons are centered on the vertexes of a polygon with radius cr
     cr = parent_radius-new_radius
@@ -72,8 +72,8 @@ def subflake_n(n, parent_rxy, phase_offset=False, center_gon=False):
     pcx = parent_rxy[1]
     pcy = parent_rxy[2]
 
-    # If phase_offset is True, the polygons will be centered on the edges not the vertices
-    ph = pi/n if phase_offset else 0
+    # If edge_center is True, the polygons will be centered on the edges not the vertices
+    ph = pi/n if edge_center else 0
     cr *= cos(ph)
 
     # Calculate the x,y values of the centers.
@@ -81,10 +81,10 @@ def subflake_n(n, parent_rxy, phase_offset=False, center_gon=False):
         rxys.append((new_radius, pcx+cr*sin(ii*2*pi/n+ph), pcy+cr*cos(ii*2*pi/n+ph)))
 
     # The center polygon's size depends on whether or not the shape is even or odd and on the
-    # flake's phase_offset parameter (e.g. configuration).
+    # flake's edge_center parameter (e.g. configuration).
     if center_gon:
         if npy.mod(n, 2):
-            if not phase_offset:
+            if not edge_center:
                 rxys.append((-parent_radius*(1-(1+cos(pi/n))/scale_factor(n))/cos(pi/n),
                             pcx, pcy))
             else:
@@ -96,7 +96,7 @@ def subflake_n(n, parent_rxy, phase_offset=False, center_gon=False):
 
 def plot_nflake(n, n_iterations, top_rad=1, xy=(0, 0), color='none', ec='k', elw=0.5, alpha=1.0,
                 center_color=None, center_ec=None, center_elw=None, center_alpha=None,
-                phase_offset=False, center_polygon=False, fig=None, fig_dpi=120, fig_size=(8, 8),
+                edge_center=False, center_polygon=False, fig=None, fig_dpi=120, fig_size=(8, 8),
                 only_centermost_colored=False, view_buff=0.001, view_buff_x=None, view_buff_y=None):
     """
     Plots an n-flake where n is the number of sides on the polygons which comprise the flake.
@@ -149,7 +149,7 @@ def plot_nflake(n, n_iterations, top_rad=1, xy=(0, 0), color='none', ec='k', elw
     for ii in range(0, n_iterations):
         n_rxys = []
         for rxy in o_rxys:
-            c_rxys = subflake_n(n, rxy, phase_offset=phase_offset, center_gon=center_polygon)
+            c_rxys = subflake_n(n, rxy, edge_center=edge_center, center_gon=center_polygon)
             if only_centermost_colored and ii < n_iterations-1 and npy.mod(n, 2) == 0:
                 for jj in range(0, len(c_rxys)):
                     c_rxys[jj] = (npy.abs(c_rxys[jj][0]), c_rxys[jj][1], c_rxys[jj][2])

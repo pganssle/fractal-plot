@@ -77,7 +77,7 @@ if nshapes > max_shapes:
                   'maximum allowed value of '+repr(max_shapes))
 
 # Plot the overlapping diagrams
-kwargs = {'ec': 'k', 'elw': 0.25, 'center_polygon': args.center, 'phase_offset': args.edge,
+kwargs = {'ec': 'k', 'elw': 0.25, 'center_polygon': args.center, 'edge_center': args.edge,
           'view_buff_x': 0.001, 'view_buff_y': 0.001, 'fig_dpi': dpi, 'fig_size': figsize}
 
 # Create a color set to work with
@@ -124,7 +124,7 @@ for n in range(start_n, end_n+1, step_n):
           name_base = 'Sierpinski {:02d}-gon '.format(n)
 
         name = name_base + ('C' if kwargs['center_polygon'] else 'N') + \
-                ' ' + ('Edge' if kwargs['phase_offset'] else 'Vertex') + ' Iterations ' + \
+                ' ' + ('Edge' if kwargs['edge_center'] else 'Vertex') + ' Iterations ' + \
                 '00-{:02d}.'.format(num_iterations)
 
         for cform in formats:
