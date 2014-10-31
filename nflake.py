@@ -1,21 +1,28 @@
 from __future__ import division
 import matplotlib.pyplot as plt
 from matplotlib.patches import RegularPolygon as RegPol
-import numpy
+import numpy as npy
 from numpy import cos, sin, pi      # Convenience
 
 
-def scale_factor(n):
+def scale_factor(n, phase_offset=False):
     """
     Return the scale factor for subsequent iterations of an n-flake.
 
     :param n: The number of sides of on the polygon.
 
+    Optional:
+    :param phase_offset: Whether the scale factor is being calculated for a vertex-centered flake
+                         (phase_offset=False, default) or an edge-centered flake.
+
     :return: Returns the factor by which each child polygon is reduced - divide parent radius by the
              scale factor to get the child radius.
     """
 
-    return 2*(1+numpy.sum([cos(2*pi*ii/n) for ii in range(1, int(n/4)+1)]))
+    if phase_offset:
+        return 3+(2/cos(pi/n))*npy.sum([cos((2*ii+1)*pi/n) for ii in range(1, int((n-2)/4)+1)])
+    else:
+        return 2*(1+npy.sum([cos(2*pi*ii/n) for ii in range(1, int(n/4)+1)]))
 
 
 def subflake_n(n, parent_rxy, phase_offset=False, center_gon=False):
@@ -28,8 +35,20 @@ def subflake_n(n, parent_rxy, phase_offset=False, center_gon=False):
     :param parent_center: The center (x, y) tuple of the parent polygon
 
     Optional
-    :param phase_offset: For polygons with number of sides n where n = 6+4*i, a second n-flake
-                         configuration is available.
+    :param phase_offset: If phase_offset is true (default False), each child polygon will have its
+                         edge centered on an edge of the parent polygon. For polygons where
+                         n = 6+4*k, this results in child polygons which share an edge rather than
+                         a vertex, and as such this can be iterated without introducing gaps. For
+                         polygons with even numbers of sides, each face of the center polygon (if
+                         present) will be collinear with the face of one of the edge/child polygons,
+                         and so a continuous shape will result only when center polygons are
+                         present. For odd-numbered polygons, continuous shapes are produced only for
+                         iterations 0, 1 and 2.
+    :param center_gon: If true, a polygon will be inscribed at the center of the shape, sharing
+                       either an edge, a vertex or both with each of the other child polygons.
+                       For polygons of size 3, 5 and 6, the center polygon is the same size as all
+                       the other child polygons. For all other sizes, the center polygon will be a
+                       different size.
 
     :raises: ValueError
 
@@ -39,36 +58,46 @@ def subflake_n(n, parent_rxy, phase_offset=False, center_gon=False):
     if n < 3:
         raise ValueError('Polygons must have at least 3 sides.')
 
-    if phase_offset and numpy.mod(n-6, 4) != 0:
-        raise ValueError('Phase offset n-flake only available for polygons where n = 6 + 4*i')
-
     parent_radius = parent_rxy[0]
 
-    new_radius = parent_radius/(scale_factor(n))
-    cr = parent_radius-new_radius
-    ocr = cr
+    # The radius of the child polygons is calculated from the scale factor
+    new_radius = parent_radius/(scale_factor(n, phase_offset=phase_offset))
 
+    # The child polgyons are centered on the vertexes of a polygon with radius cr
+    cr = parent_radius-new_radius
+    ocr = cr                            # cr may be modified, store its original value here
+
+    # Initialize output list and break out parent coordinates
     rxys = []
     pcx = parent_rxy[1]
     pcy = parent_rxy[2]
 
+    # If phase_offset is True, the polygons will be centered on the edges not the vertices
     ph = pi/n if phase_offset else 0
     cr *= cos(ph)
 
+    # Calculate the x,y values of the centers.
     for ii in range(0, n):
         rxys.append((new_radius, pcx+cr*sin(ii*2*pi/n+ph), pcy+cr*cos(ii*2*pi/n+ph)))
 
+    # The center polygon's size depends on whether or not the shape is even or odd and on the
+    # flake's phase_offset parameter (e.g. configuration).
     if center_gon:
-        if numpy.mod(n, 2):
-            rxys.append((-parent_radius*(1-(1+cos(pi/n))/scale_factor(n))/cos(pi/n),
-                     pcx, pcy))
+        if npy.mod(n, 2):
+            if not phase_offset:
+                rxys.append((-parent_radius*(1-(1+cos(pi/n))/scale_factor(n))/cos(pi/n),
+                            pcx, pcy))
+            else:
+                rxys.append((-(parent_radius*cos(pi/n)-new_radius*(1+cos(pi/n))), pcx, pcy))
         else:
-            rxys.append((ocr-new_radius, pcx, pcy))
+            rxys.append((-(ocr-new_radius), pcx, pcy))
     return rxys
 
 
-def plot_nflake(n, n_iterations, top_rad=1, color='k', ec='k', elw=0.5, alpha=1.0,
-                phase_offset=False, center_polygon=False, fig=None):
+def plot_nflake(n, n_iterations, top_rad=1, xy=(0, 0), color='none', ec='k', elw=0.5, alpha=1.0,
+                center_color=None, center_ec=None, center_elw=None, center_alpha=None,
+                phase_offset=False, center_polygon=False, fig=None, fig_dpi=120, fig_size=(8, 8),
+                only_centermost_colored=False, view_buff=0.001, view_buff_x=None, view_buff_y=None):
     """
     Plots an n-flake where n is the number of sides on the polygons which comprise the flake.
 
@@ -78,29 +107,59 @@ def plot_nflake(n, n_iterations, top_rad=1, color='k', ec='k', elw=0.5, alpha=1.
 
     :return: Returns the figure on which this is rendered.
     """
+    # Create a figure if one is not provided.
     if fig is None:
-        fig = plt.figure(figsize=(8, 8), dpi=120, frameon=False)
+        fig = plt.figure(figsize=fig_size, dpi=fig_dpi, frameon=False)
         ax = fig.add_subplot(111, axis_bgcolor='none', frameon=False, aspect='equal')
     else:
         ax = fig.gca()
 
-    o_rxys = [(top_rad, 0, 0)]
+    # If not specified, the center polygons use the parameters of the edge polygons
+    if center_color is None:
+        center_color = color
 
+    if center_ec is None:
+        center_ec = ec
+
+    if center_elw is None:
+        center_elw = elw
+
+    if center_alpha is None:
+        center_alpha = alpha
+
+    if view_buff_x is None:
+        view_buff_x = view_buff
+
+    if view_buff_y is None:
+        view_buff_y = view_buff
+    
+    o_rxys = [(top_rad, xy[0], xy[1])]
+
+    # Plot parameters for each polygon
     gon_kwargs = {'color': color, 'lw': elw, 'ec': ec, 'alpha': alpha}
+    cgon_kwargs = {'color': center_color, 'lw': center_elw, 'ec': center_ec, 'alpha': center_alpha}
+
+    # For zero-iterations, we're just plotting a regular polygon
     if n_iterations == 0:
         gons = [RegPol((o_rxys[0][1], o_rxys[0][2]), n, o_rxys[0][0], **gon_kwargs)]
     else:
         gons = []
 
+    # Recursively populate the set of polygons.
     for ii in range(0, n_iterations):
         n_rxys = []
         for rxy in o_rxys:
             c_rxys = subflake_n(n, rxy, phase_offset=phase_offset, center_gon=center_polygon)
+            if only_centermost_colored and ii < n_iterations-1 and npy.mod(n, 2) == 0:
+                for jj in range(0, len(c_rxys)):
+                    c_rxys[jj] = (npy.abs(c_rxys[jj][0]), c_rxys[jj][1], c_rxys[jj][2])
+
             for nrxy in c_rxys:
                 n_rxys.append(nrxy)
 
                 if ii == n_iterations-1:
-                    gons.append(RegPol((nrxy[1], nrxy[2]), n, nrxy[0], **gon_kwargs))
+                    kwargs = gon_kwargs if npy.sign(nrxy[0]) == npy.sign(top_rad) else cgon_kwargs
+                    gons.append(RegPol((nrxy[1], nrxy[2]), n, nrxy[0], **kwargs))
 
         o_rxys = n_rxys
 
@@ -111,20 +170,19 @@ def plot_nflake(n, n_iterations, top_rad=1, color='k', ec='k', elw=0.5, alpha=1.
     ax.set_yticks([])
 
     plt.tight_layout()
-    
+
     ax.relim()
     ax.autoscale_view(True, True, True)
 
     # Getting cut off at the edges for whatever reason, add a view buffer
-    view_buff = 0.02
     ylims = ax.get_ylim()
     xlims = ax.get_xlim()
 
     yrang = abs(ylims[1]-ylims[0])
     xrang = abs(xlims[1]-xlims[0])
 
-    ybuff = view_buff*yrang
-    xbuff = view_buff*xrang
+    ybuff = view_buff_y*yrang
+    xbuff = view_buff_x*xrang
 
     ax.set_ylim([ylims[0]-ybuff, ylims[1]+ybuff])
     ax.set_xlim([xlims[0]-xbuff, xlims[1]+xbuff])
